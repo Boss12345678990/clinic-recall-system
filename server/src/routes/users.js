@@ -23,7 +23,8 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const { username, password, displayName, role } = req.body ?? {};
-    if (!username || typeof username !== 'string') return res.status(400).json({ error: 'USERNAME_REQUIRED' });
+    const trimmedUsername = typeof username === 'string' ? username.trim() : '';
+    if (!trimmedUsername) return res.status(400).json({ error: 'USERNAME_REQUIRED' });
     if (!password || String(password).length < MIN_PASSWORD) {
       return res.status(400).json({ error: 'WEAK_PASSWORD' });
     }
@@ -32,7 +33,7 @@ router.post(
     try {
       const user = await prisma.user.create({
         data: {
-          username: username.trim(),
+          username: trimmedUsername,
           passwordHash: await bcrypt.hash(String(password), 12),
           displayName: displayName?.trim() || null,
           role: role || 'STAFF',

@@ -60,6 +60,13 @@ describe('settings', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('INVALID_SETTING');
   });
+
+  it('PUT rejects maxCalls above the CALL_3 limit', async () => {
+    const agent = await authedAgent('ADMIN');
+    const res = await agent.put('/api/settings').send({ maxCalls: 4 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_SETTING');
+  });
 });
 
 describe('users', () => {
@@ -74,6 +81,13 @@ describe('users', () => {
     const res = await agent.get('/api/users');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
+  });
+
+  it('rejects a blank (whitespace) username', async () => {
+    const agent = await authedAgent('ADMIN');
+    const res = await agent.post('/api/users').send({ username: '   ', password: 'secret1' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('USERNAME_REQUIRED');
   });
 
   it('rejects a weak password', async () => {

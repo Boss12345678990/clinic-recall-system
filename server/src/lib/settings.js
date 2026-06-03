@@ -30,6 +30,9 @@ export function validateSettingsPatch(patch = {}) {
     if (NUMERIC_KEYS.has(key)) {
       const n = Number(value);
       if (!Number.isInteger(n) || n <= 0) throw new Error('INVALID_SETTING');
+      // The ContactStep enum only implements up to a 3rd call, so maxCalls
+      // above 3 would strand CALL_3 patients in no bucket.
+      if (key === 'maxCalls' && n > 3) throw new Error('INVALID_SETTING');
       rows.push({ key, value: String(n) });
     } else {
       const str = String(value ?? '').trim();
