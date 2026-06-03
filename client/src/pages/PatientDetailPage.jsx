@@ -1,15 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { patientsApi } from '../api/patients.js';
-
-const STEP_LABELS = {
-  NOT_STARTED: '尚未開始',
-  LINE_SENT: '已傳 LINE',
-  CALL_1: '已撥打 1 通',
-  CALL_2: '已撥打 2 通',
-  CALL_3: '已撥打 3 通',
-};
-const STATUS_LABELS = { UNCONFIRMED: '未確認', CONFIRMED: '已確認複診' };
+import CycleManager from '../components/CycleManager.jsx';
 
 export default function PatientDetailPage() {
   const { id } = useParams();
@@ -18,23 +10,19 @@ export default function PatientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const load = useCallback(
+    () =>
+      patientsApi
+        .get(id)
+        .then(setPatient)
+        .catch((err) => setError(err?.status === 404 ? '找不到此病患' : '載入失敗'))
+        .finally(() => setLoading(false)),
+    [id]
+  );
+
   useEffect(() => {
-    let cancelled = false;
-    patientsApi
-      .get(id)
-      .then((p) => {
-        if (!cancelled) setPatient(p);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err?.status === 404 ? '找不到此病患' : '載入失敗');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+    load();
+  }, [load]);
 
   async function handleDelete() {
     if (!window.confirm(`確定要刪除「${patient.name}」嗎？此動作無法復原。`)) return;
@@ -86,13 +74,14 @@ export default function PatientDetailPage() {
       </section>
 
       <section className="mb-4 rounded-xl bg-white p-5 text-sm shadow-sm">
-        <h2 className="mb-2 font-medium text-slate-700">目前回診進度</h2>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="font-medium text-slate-700">目前回診進度</h2>
+          {patient.activeCycle && (
+            <span className="text-xs text-slate-400">回診日 {patient.activeCycle.recallDate}</span>
+          )}
+        </div>
         {patient.activeCycle ? (
-          <div className="flex gap-6 text-slate-600">
-            <span>回診日：{patient.activeCycle.recallDate}</span>
-            <span>進度：{STEP_LABELS[patient.activeCycle.step] ?? patient.activeCycle.step}</span>
-            <span>狀態：{STATUS_LABELS[patient.activeCycle.status] ?? patient.activeCycle.status}</span>
-          </div>
+          <CycleManager cycle={patient.activeCycle} patient={patient} onChanged={load} />
         ) : (
           <p className="text-slate-400">尚無進行中的回診（請設定最近看診日）。</p>
         )}

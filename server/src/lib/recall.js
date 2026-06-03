@@ -28,8 +28,11 @@ export function computeRecallDate(lastVisit, intervalMonths) {
   return result;
 }
 
-// How many calls a cycle has already made, derived from its step.
-const STEP_CALLS = { NOT_STARTED: 0, LINE_SENT: 0, CALL_1: 1, CALL_2: 2, CALL_3: 3 };
+// How many calls a cycle has already made, derived from its step. The step is
+// the single source of truth for progress (manual overrides can diverge from
+// callLogs.length), so call counting and next-attempt numbers derive from here.
+export const STEP_CALLS = { NOT_STARTED: 0, LINE_SENT: 0, CALL_1: 1, CALL_2: 2, CALL_3: 3 };
+export const CONTACT_STEPS = ['NOT_STARTED', 'LINE_SENT', 'CALL_1', 'CALL_2', 'CALL_3'];
 
 function baseItem(cycle) {
   return {
@@ -37,6 +40,7 @@ function baseItem(cycle) {
     patientId: cycle.patientId,
     patientName: cycle.patient?.name ?? null,
     phone: cycle.patient?.phone ?? null,
+    intervalMonths: cycle.patient?.intervalMonths ?? null,
     recallDate: toDateOnly(cycle.recallDate),
     step: cycle.step,
     status: cycle.status,

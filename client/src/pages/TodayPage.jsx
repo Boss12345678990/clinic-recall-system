@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { recallsApi } from '../api/recalls.js';
 import { cyclesApi } from '../api/cycles.js';
+import { patientsApi } from '../api/patients.js';
+import RescheduleModal from '../components/RescheduleModal.jsx';
 
 const BUCKETS = [
   { key: 'needLine', title: '要傳 LINE', accent: 'border-green-400', dot: 'bg-green-500' },
@@ -15,6 +17,7 @@ export default function TodayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [rescheduleItem, setRescheduleItem] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -80,6 +83,10 @@ export default function TodayPage() {
                       onRecordCall={() =>
                         runAction(item.cycleId, () => cyclesApi.recordCall(item.cycleId))
                       }
+                      onConfirm={() =>
+                        runAction(item.cycleId, () => cyclesApi.setStatus(item.cycleId, 'CONFIRMED'))
+                      }
+                      onSchedule={() => setRescheduleItem(item)}
                     />
                   ))}
                 </ul>
@@ -88,11 +95,24 @@ export default function TodayPage() {
           );
         })}
       </div>
+
+      {rescheduleItem && (
+        <RescheduleModal
+          patientName={rescheduleItem.patientName}
+          defaultInterval={rescheduleItem.intervalMonths ?? 6}
+          onClose={() => setRescheduleItem(null)}
+          onSubmit={async ({ visitDate, intervalMonths }) => {
+            await patientsApi.reschedule(rescheduleItem.patientId, { visitDate, intervalMonths });
+            setRescheduleItem(null);
+            await load();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function RecallCard({ item, bucket, busy, onSendLine, onRecordCall }) {
+function RecallCard({ item, bucket, busy, onSendLine, onRecordCall, onConfirm, onSchedule }) {
   return (
     <li className="rounded-lg border border-slate-100 p-3">
       <div className="flex items-baseline justify-between">
@@ -114,27 +134,51 @@ function RecallCard({ item, bucket, busy, onSendLine, onRecordCall }) {
       </div>
 
       {bucket === 'needLine' && (
-        <button
-          onClick={onSendLine}
-          disabled={busy}
-          className="mt-2 w-full rounded-md bg-green-600 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
-        >
-          {busy ? '處理中…' : '傳 LINE / 訊息'}
-        </button>
+        <div className="mt-2 flex gap-1.5">
+          <button
+            onClick={onSendLine}
+            disabled={busy}
+            className="flex-1 rounded-md bg-green-600 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+          >
+            {busy ? '…' : '傳 LINE'}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="rounded-md border border-emerald-300 px-2 py-1.5 text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+          >
+            確認複診
+          </button>
+        </div>
       )}
 
       {bucket === 'needCall' && (
-        <button
-          onClick={onRecordCall}
-          disabled={busy}
-          className="mt-2 w-full rounded-md bg-blue-600 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          {busy ? '處理中…' : `撥打 / 記錄第 ${item.nextCall} 通`}
-        </button>
+        <div className="mt-2 flex gap-1.5">
+          <button
+            onClick={onRecordCall}
+            disabled={busy}
+            className="flex-1 rounded-md bg-blue-600 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            {busy ? '…' : `記錄第 ${item.nextCall} 通`}
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="rounded-md border border-emerald-300 px-2 py-1.5 text-sm text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+          >
+            確認複診
+          </button>
+        </div>
       )}
 
       {bucket === 'confirmed' && (
-        <p className="mt-2 text-xs text-emerald-600">待安排下次看診</p>
+        <button
+          onClick={onSchedule}
+          disabled={busy}
+          className="mt-2 w-full rounded-md bg-emerald-600 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+        >
+          安排下次看診
+        </button>
       )}
       {bucket === 'unreachable' && (
         <p className="mt-2 text-xs text-red-500">已撥滿，未聯絡上</p>
