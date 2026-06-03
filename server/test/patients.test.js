@@ -225,7 +225,7 @@ describe('POST /api/patients/:id/reschedule', () => {
       .mockResolvedValueOnce({
         id: 3,
         intervalMonths: 6,
-        recallCycles: [{ id: 50, isActive: true }],
+        recallCycles: [{ id: 50, isActive: true, status: 'CONFIRMED' }],
       })
       .mockResolvedValueOnce({
         id: 3,
@@ -262,6 +262,18 @@ describe('POST /api/patients/:id/reschedule', () => {
     const res = await agent.post('/api/patients/3/reschedule').send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('VISIT_DATE_REQUIRED');
+  });
+
+  it('400 NOT_CONFIRMED when the active cycle is unconfirmed', async () => {
+    prismaMock.patient.findUnique.mockResolvedValue({
+      id: 3,
+      intervalMonths: 6,
+      recallCycles: [{ id: 50, isActive: true, status: 'UNCONFIRMED' }],
+    });
+    const agent = await authedAgent();
+    const res = await agent.post('/api/patients/3/reschedule').send({ visitDate: '2026-06-20' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('NOT_CONFIRMED');
   });
 
   it('404 when the patient is missing', async () => {

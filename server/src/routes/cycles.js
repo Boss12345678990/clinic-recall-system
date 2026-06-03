@@ -134,6 +134,11 @@ router.patch(
       if (step === 'NOT_STARTED') data.lineSentAt = null;
       if (step === 'LINE_SENT') data.lineSentAt = when ?? cycle.lineSentAt ?? new Date();
 
+      // Rewinding the step: drop call attempts beyond the new step so history
+      // and today's-to-do timing stay coherent (e.g. CALL_2 -> CALL_1 removes
+      // attempt 2; LINE_SENT/NOT_STARTED remove all calls).
+      await tx.callLog.deleteMany({ where: { cycleId: id, attemptNo: { gt: callNo } } });
+
       if (callNo >= 1) {
         const existing = cycle.callLogs.find((l) => l.attemptNo === callNo);
         if (!existing) {

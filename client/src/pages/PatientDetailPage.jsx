@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { patientsApi } from '../api/patients.js';
 import CycleManager from '../components/CycleManager.jsx';
@@ -9,16 +9,25 @@ export default function PatientDetailPage() {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const reqId = useRef(0);
 
-  const load = useCallback(
-    () =>
-      patientsApi
-        .get(id)
-        .then(setPatient)
-        .catch((err) => setError(err?.status === 404 ? '找不到此病患' : '載入失敗'))
-        .finally(() => setLoading(false)),
-    [id]
-  );
+  // A request token guards against stale responses winning after the id changes
+  // (navigating between patients) or an out-of-order refetch.
+  const load = useCallback(() => {
+    const token = ++reqId.current;
+    setLoading(true);
+    return patientsApi
+      .get(id)
+      .then((p) => {
+        if (token === reqId.current) setPatient(p);
+      })
+      .catch((err) => {
+        if (token === reqId.current) setError(err?.status === 404 ? '找不到此病患' : '載入失敗');
+      })
+      .finally(() => {
+        if (token === reqId.current) setLoading(false);
+      });
+  }, [id]);
 
   useEffect(() => {
     load();

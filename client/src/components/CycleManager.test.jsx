@@ -65,8 +65,13 @@ describe('CycleManager', () => {
     await waitFor(() => expect(close).toHaveBeenCalledWith(1, 'NO_RESPONSE'));
   });
 
-  it('reschedules through the modal', async () => {
-    renderManager();
+  it('reschedules through the modal (when confirmed)', async () => {
+    const onChanged = vi.fn().mockResolvedValue();
+    render(
+      <MemoryRouter>
+        <CycleManager cycle={{ ...cycle, status: 'CONFIRMED' }} patient={patient} onChanged={onChanged} />
+      </MemoryRouter>
+    );
     await userEvent.click(screen.getByRole('button', { name: '安排下次看診' }));
     await userEvent.click(await screen.findByRole('button', { name: '確認並安排' }));
     await waitFor(() => expect(reschedule).toHaveBeenCalledWith(9, expect.objectContaining({ intervalMonths: 6 })));

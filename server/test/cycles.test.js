@@ -6,7 +6,7 @@ const prismaMock = {
   user: { findUnique: vi.fn() },
   setting: { findMany: vi.fn() },
   recallCycle: { findUnique: vi.fn(), update: vi.fn() },
-  callLog: { create: vi.fn(), update: vi.fn() },
+  callLog: { create: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
   $transaction: vi.fn(async (cb) => cb(prismaMock)),
 };
 vi.mock('../src/lib/prisma.js', () => ({ default: prismaMock }));
@@ -169,6 +169,24 @@ describe('PATCH /api/cycles/:id/step', () => {
     const res = await agent.patch('/api/cycles/1/step').send({ step: 'CALL_1', date: '2026-05-04' });
     expect(res.status).toBe(200);
     expect(prismaMock.callLog.create.mock.calls.at(-1)[0].data).toMatchObject({ attemptNo: 1 });
+  });
+
+  it('drops later call attempts when rewinding the step', async () => {
+    prismaMock.recallCycle.findUnique.mockResolvedValue({
+      id: 1,
+      patientId: 5,
+      isActive: true,
+      step: 'CALL_2',
+      callLogs: [{ id: 11, attemptNo: 1 }, { id: 12, attemptNo: 2 }],
+    });
+    prismaMock.recallCycle.update.mockResolvedValue({ id: 1, step: 'CALL_1', recallDate: null });
+
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/cycles/1/step').send({ step: 'CALL_1' });
+    expect(res.status).toBe(200);
+    expect(prismaMock.callLog.deleteMany.mock.calls.at(-1)[0]).toMatchObject({
+      where: { cycleId: 1, attemptNo: { gt: 1 } },
+    });
   });
 
   it('400 on an invalid step', async () => {
