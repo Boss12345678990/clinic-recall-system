@@ -2,7 +2,9 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSessionMiddleware } from './lib/session.js';
+import { requireAuth } from './middleware/auth.js';
 import authRouter from './routes/auth.js';
+import patientsRouter from './routes/patients.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +39,7 @@ export function createApp({ sessionMiddleware } = {}) {
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
   app.use('/api/auth', authRouter);
+  app.use('/api/patients', requireAuth, patientsRouter);
 
   // In production, serve the built client (same-origin, spec §5).
   if (process.env.NODE_ENV === 'production') {
