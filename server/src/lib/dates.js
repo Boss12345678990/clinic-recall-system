@@ -29,3 +29,26 @@ export function toDateOnly(date) {
   if (!date) return null;
   return new Date(date).toISOString().slice(0, 10);
 }
+
+/** Today as a UTC-midnight date-only Date (server clock). */
+export function todayUTC() {
+  return parseDateOnly(new Date().toISOString().slice(0, 10));
+}
+
+/** Collapse a DateTime (e.g. lineSentAt, calledAt) to its UTC date-only Date. */
+export function toDayStart(dateTime) {
+  if (!dateTime) return null;
+  return parseDateOnly(new Date(dateTime).toISOString().slice(0, 10));
+}
+
+/** A new Date `days` after `date` (UTC). */
+export function addDays(date, days) {
+  const d = new Date(date);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
+/** Whole-day difference a - b (positive when a is later). */
+export function diffDays(a, b) {
+  return Math.round((new Date(a).getTime() - new Date(b).getTime()) / 86_400_000);
+}
