@@ -1,0 +1,117 @@
+// Prisma schema — 牙醫診所回診提醒系統 (spec.md §6)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  displayName  String?
+  role         Role      @default(STAFF)
+  createdAt    DateTime  @default(now())
+  callLogs     CallLog[]
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model Patient {
+  id             Int           @id @default(autoincrement())
+  name           String
+  phone          String?
+  birthday       DateTime?     @db.Date
+  lastVisit      DateTime?     @db.Date
+  intervalMonths Int           @default(6)
+  lineUserId     String?       @unique // 未來 LINE 綁定預留
+  status         PatientStatus @default(ACTIVE) // 病患是否仍在追蹤
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  visits         Visit[]
+  recallCycles   RecallCycle[]
+}
+
+enum PatientStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Visit {
+  id        Int      @id @default(autoincrement())
+  patientId Int
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  visitDate DateTime @db.Date
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+// ★ 核心：一輪回診聯絡 = 一個 RecallCycle
+model RecallCycle {
+  id           Int           @id @default(autoincrement())
+  patientId    Int
+  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  recallDate   DateTime      @db.Date // 預定回診日 (= 看診日 + 間隔)
+  step         ContactStep   @default(NOT_STARTED) // 聯絡進度
+  status       ConfirmStatus @default(UNCONFIRMED) // 複診狀態
+  lineSentAt   DateTime? // 傳 LINE 的時間
+  isActive     Boolean       @default(true) // 是否為進行中的一輪
+  closedReason ClosedReason? // 結束原因
+  callLogs     CallLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([recallDate])
+  @@index([isActive, step, status])
+}
+
+// 進度：甲方定義的步驟（NOT_STARTED 為傳 LINE 之前的內部初始態）
+enum ContactStep {
+  NOT_STARTED // 尚未開始（回診日前一週前）
+  LINE_SENT // 1. 已傳 LINE / 訊息
+  CALL_1 // 2. 已撥打一次
+  CALL_2 // 3. 已撥打兩次
+  CALL_3 // 4. 已撥打三次
+}
+
+// 狀態：甲方定義
+enum ConfirmStatus {
+  CONFIRMED // 確認複診
+  UNCONFIRMED // 未確認
+}
+
+enum ClosedReason {
+  CONFIRMED_BOOKED // 已確認並約好下次
+  NO_RESPONSE // 撥滿三次未聯絡上
+  MANUAL // 櫃檯手動結束
+}
+
+model CallLog {
+  id        Int         @id @default(autoincrement())
+  cycleId   Int
+  cycle     RecallCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  patientId Int
+  userId    Int?
+  user      User?       @relation(fields: [userId], references: [id])
+  attemptNo Int // 第幾通 (1/2/3)
+  outcome   CallOutcome @default(NO_ANSWER)
+  note      String?
+  calledAt  DateTime    @default(now())
+}
+
+enum CallOutcome {
+  NO_ANSWER
+  REACHED
+}
+
+model Setting {
+  key   String @id
+  value String
+}

@@ -1,0 +1,21 @@
+{
+  "name": "clinic-recall-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "牙醫診所回診提醒系統 (Dental clinic recall reminder system) — MVP",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "test": "npm --prefix server test && npm --prefix client test",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "migrate": "npm --prefix server run migrate",
+    "seed:admin": "npm --prefix server run seed:admin"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
