@@ -14,6 +14,9 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'TOO_MANY_ATTEMPTS' },
+  // The limiter is a module singleton shared across all app instances; skip it
+  // under test so repeated logins within a suite don't trip the throttle.
+  skip: () => process.env.NODE_ENV === 'test',
 });
 
 router.post('/login', loginLimiter, asyncHandler(async (req, res) => {

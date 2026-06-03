@@ -152,6 +152,63 @@ describe('POST /api/patients', () => {
   });
 });
 
+describe('PATCH /api/patients/:id', () => {
+  it('seeds tracking when a lastVisit is added to a patient with no active cycle', async () => {
+    prismaMock.patient.findUnique
+      .mockResolvedValueOnce({ id: 5, lastVisit: null, intervalMonths: 6, recallCycles: [] }) // existing
+      .mockResolvedValueOnce({
+        id: 5,
+        name: 'Late',
+        intervalMonths: 6,
+        status: 'ACTIVE',
+        lastVisit: new Date('2026-01-15T00:00:00Z'),
+        recallCycles: [{ isActive: true, recallDate: new Date('2026-07-15T00:00:00Z') }],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    prismaMock.patient.update.mockResolvedValue({});
+    prismaMock.visit.create.mockResolvedValue({});
+    prismaMock.recallCycle.create.mockResolvedValue({});
+
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/patients/5').send({ lastVisit: '2026-01-15' });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.recallCycle.create).toHaveBeenCalledOnce();
+    expect(res.body.recallDate).toBe('2026-07-15');
+  });
+
+  it('retires an untouched cycle when lastVisit is cleared', async () => {
+    prismaMock.patient.findUnique
+      .mockResolvedValueOnce({
+        id: 6,
+        lastVisit: new Date('2026-01-15T00:00:00Z'),
+        intervalMonths: 6,
+        recallCycles: [{ id: 77, isActive: true, step: 'NOT_STARTED' }],
+      })
+      .mockResolvedValueOnce({
+        id: 6,
+        name: 'Cleared',
+        intervalMonths: 6,
+        status: 'ACTIVE',
+        lastVisit: null,
+        recallCycles: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    prismaMock.patient.update.mockResolvedValue({});
+    prismaMock.recallCycle.update.mockResolvedValue({});
+
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/patients/6').send({ lastVisit: null });
+
+    expect(res.status).toBe(200);
+    const updateArg = prismaMock.recallCycle.update.mock.calls.at(-1)[0];
+    expect(updateArg).toMatchObject({ where: { id: 77 }, data: { isActive: false } });
+    expect(res.body.recallDate).toBeNull();
+  });
+});
+
 describe('GET /api/patients/:id', () => {
   it('404 when not found', async () => {
     prismaMock.patient.findUnique.mockResolvedValue(null);

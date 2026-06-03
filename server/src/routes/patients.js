@@ -68,6 +68,14 @@ function parsePatientInput(body = {}, { partial = false } = {}) {
   return data;
 }
 
+// A patient "enters recall tracking" by getting a Visit (the known last visit)
+// plus an active RecallCycle. Shared by create and the patch-adds-lastVisit path
+// so both behave identically.
+async function seedRecallTracking(tx, patientId, lastVisit, recallDate) {
+  await tx.visit.create({ data: { patientId, visitDate: lastVisit } });
+  await tx.recallCycle.create({ data: { patientId, recallDate } });
+}
+
 function serializePatient(patient) {
   if (!patient) return null;
   const activeCycle = patient.recallCycles?.find((c) => c.isActive) ?? null;
@@ -128,12 +136,7 @@ router.post(
     const patient = await prisma.$transaction(async (tx) => {
       const created = await tx.patient.create({ data });
       if (data.lastVisit) {
-        await tx.visit.create({
-          data: { patientId: created.id, visitDate: data.lastVisit },
-        });
-        await tx.recallCycle.create({
-          data: { patientId: created.id, recallDate },
-        });
+        await seedRecallTracking(tx, created.id, data.lastVisit, recallDate);
       }
       return tx.patient.findUnique({
         where: { id: created.id },
@@ -202,14 +205,31 @@ router.patch(
     const patient = await prisma.$transaction(async (tx) => {
       await tx.patient.update({ where: { id }, data });
 
-      const activeCycle = existing.recallCycles[0];
-      if (recallInputsChanged && activeCycle && activeCycle.step === 'NOT_STARTED') {
+      if (recallInputsChanged) {
         const lastVisit = data.lastVisit !== undefined ? data.lastVisit : existing.lastVisit;
         const interval =
           data.intervalMonths !== undefined ? data.intervalMonths : existing.intervalMonths;
         const recallDate = computeRecallDate(lastVisit, interval);
-        if (recallDate) {
-          await tx.recallCycle.update({ where: { id: activeCycle.id }, data: { recallDate } });
+        const activeCycle = existing.recallCycles[0];
+
+        if (activeCycle) {
+          // Only adjust an untouched cycle; progressed ones are reschedule
+          // territory (Phase 3) and must not move silently.
+          if (activeCycle.step === 'NOT_STARTED') {
+            if (recallDate) {
+              await tx.recallCycle.update({ where: { id: activeCycle.id }, data: { recallDate } });
+            } else {
+              // lastVisit cleared -> the cycle has no anchor; retire it so it
+              // stops showing a stale recall date.
+              await tx.recallCycle.update({
+                where: { id: activeCycle.id },
+                data: { isActive: false, closedReason: 'MANUAL' },
+              });
+            }
+          }
+        } else if (recallDate) {
+          // No active cycle yet, but a lastVisit was just added -> enter tracking.
+          await seedRecallTracking(tx, id, lastVisit, recallDate);
         }
       }
 
