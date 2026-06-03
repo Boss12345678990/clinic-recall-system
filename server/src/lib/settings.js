@@ -13,13 +13,35 @@ export const DEFAULT_SETTINGS = {
   lineTemplate: '提醒您即將到了回診時間，請與診所聯繫安排回診。',
 };
 
-const NUMERIC_KEYS = new Set([
+export const NUMERIC_KEYS = new Set([
   'defaultInterval',
   'lineLeadDays',
   'firstCallDelayDays',
   'callGapDays',
   'maxCalls',
 ]);
+
+// Validate + normalize a partial settings patch. Throws Error('INVALID_SETTING')
+// on a bad value. Returns rows ready to upsert.
+export function validateSettingsPatch(patch = {}) {
+  const rows = [];
+  for (const [key, value] of Object.entries(patch)) {
+    if (!(key in DEFAULT_SETTINGS)) continue; // ignore unknown keys
+    if (NUMERIC_KEYS.has(key)) {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n <= 0) throw new Error('INVALID_SETTING');
+      // The ContactStep enum only implements up to a 3rd call, so maxCalls
+      // above 3 would strand CALL_3 patients in no bucket.
+      if (key === 'maxCalls' && n > 3) throw new Error('INVALID_SETTING');
+      rows.push({ key, value: String(n) });
+    } else {
+      const str = String(value ?? '').trim();
+      if (!str) throw new Error('INVALID_SETTING');
+      rows.push({ key, value: str });
+    }
+  }
+  return rows;
+}
 
 /** Merge a list of {key,value} rows over the defaults, coercing numeric keys. */
 export function mergeSettings(rows = []) {
@@ -35,4 +57,12 @@ export function mergeSettings(rows = []) {
 export async function getSettings() {
   const rows = await prisma.setting.findMany();
   return mergeSettings(rows);
+}
+
+/** Seed any missing default settings into the table (idempotent, run at startup). */
+export async function seedSettings() {
+  await prisma.setting.createMany({
+    data: Object.entries(DEFAULT_SETTINGS).map(([key, value]) => ({ key, value: String(value) })),
+    skipDuplicates: true,
+  });
 }

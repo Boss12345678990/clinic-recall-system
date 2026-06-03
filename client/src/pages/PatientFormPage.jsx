@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { patientsApi } from '../api/patients.js';
+import { settingsApi } from '../api/dashboard.js';
 import { ApiError } from '../api/client.js';
 
 const ERROR_MESSAGES = {
@@ -30,7 +31,14 @@ export default function PatientFormPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!isEdit) return;
+    if (!isEdit) {
+      // Prefill the interval from the configured default for new patients.
+      settingsApi
+        .get()
+        .then((s) => setForm((prev) => ({ ...prev, intervalMonths: s.defaultInterval })))
+        .catch(() => {});
+      return;
+    }
     patientsApi
       .get(id)
       .then((p) =>

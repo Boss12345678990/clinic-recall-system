@@ -16,6 +16,7 @@ const prismaMock = {
   visit: { create: vi.fn() },
   recallCycle: { create: vi.fn(), update: vi.fn() },
   callLog: { create: vi.fn() },
+  setting: { findMany: vi.fn() },
   $transaction: vi.fn(async (cb) => cb(prismaMock)),
 };
 vi.mock('../src/lib/prisma.js', () => ({ default: prismaMock }));
@@ -39,6 +40,7 @@ async function authedAgent() {
 beforeEach(() => {
   vi.clearAllMocks();
   prismaMock.$transaction.mockImplementation(async (cb) => cb(prismaMock));
+  prismaMock.setting.findMany.mockResolvedValue([]); // default settings
 });
 
 describe('patients auth', () => {

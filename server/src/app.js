@@ -7,6 +7,9 @@ import authRouter from './routes/auth.js';
 import patientsRouter from './routes/patients.js';
 import recallsRouter from './routes/recalls.js';
 import cyclesRouter from './routes/cycles.js';
+import dashboardRouter from './routes/dashboard.js';
+import settingsRouter from './routes/settings.js';
+import usersRouter from './routes/users.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -44,6 +47,9 @@ export function createApp({ sessionMiddleware } = {}) {
   app.use('/api/patients', requireAuth, patientsRouter);
   app.use('/api/recalls', requireAuth, recallsRouter);
   app.use('/api/cycles', requireAuth, cyclesRouter);
+  app.use('/api/dashboard', requireAuth, dashboardRouter);
+  app.use('/api/settings', requireAuth, settingsRouter);
+  app.use('/api/users', requireAuth, usersRouter);
 
   // In production, serve the built client (same-origin, spec §5).
   if (process.env.NODE_ENV === 'production') {

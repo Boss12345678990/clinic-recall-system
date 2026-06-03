@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { parseDateOnly, toDateOnly } from '../lib/dates.js';
 import { computeRecallDate } from '../lib/recall.js';
+import { getSettings } from '../lib/settings.js';
 
 const router = Router();
 
@@ -123,9 +124,16 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
+    // Default the interval from the configured setting when the caller omits it.
+    const body = { ...req.body };
+    if (body.intervalMonths === undefined || body.intervalMonths === null || body.intervalMonths === '') {
+      const settings = await getSettings();
+      body.intervalMonths = settings.defaultInterval;
+    }
+
     let data;
     try {
-      data = parsePatientInput(req.body, { partial: false });
+      data = parsePatientInput(body, { partial: false });
     } catch (err) {
       if (err instanceof ValidationError) return res.status(400).json({ error: err.message });
       throw err;
