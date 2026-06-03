@@ -4,6 +4,7 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import AppLayout from './components/AppLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
+import TodayPage from './pages/TodayPage.jsx';
 import PatientsPage from './pages/PatientsPage.jsx';
 import PatientFormPage from './pages/PatientFormPage.jsx';
 import PatientDetailPage from './pages/PatientDetailPage.jsx';
@@ -21,7 +22,7 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<PlaceholderPage title="今日待辦" />} />
+            <Route index element={<TodayPage />} />
             <Route path="patients" element={<PatientsPage />} />
             <Route path="patients/new" element={<PatientFormPage />} />
             <Route path="patients/:id" element={<PatientDetailPage />} />
