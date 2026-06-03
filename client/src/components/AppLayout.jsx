@@ -6,6 +6,7 @@ const NAV = [
   { to: '/patients', label: '病患資料' },
   { to: '/dashboard', label: '儀表板' },
   { to: '/settings', label: '設定', role: 'ADMIN' },
+  { to: '/users', label: '帳號管理', role: 'ADMIN' },
 ];
 
 export default function AppLayout() {

@@ -3,11 +3,13 @@ import { AuthProvider } from './auth/AuthContext.jsx';
 import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import AppLayout from './components/AppLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import TodayPage from './pages/TodayPage.jsx';
 import PatientsPage from './pages/PatientsPage.jsx';
 import PatientFormPage from './pages/PatientFormPage.jsx';
 import PatientDetailPage from './pages/PatientDetailPage.jsx';
+import DashboardPage from './pages/DashboardPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
+import UsersPage from './pages/UsersPage.jsx';
 
 export default function App() {
   return (
@@ -27,12 +29,20 @@ export default function App() {
             <Route path="patients/new" element={<PatientFormPage />} />
             <Route path="patients/:id" element={<PatientDetailPage />} />
             <Route path="patients/:id/edit" element={<PatientFormPage />} />
-            <Route path="dashboard" element={<PlaceholderPage title="儀表板" />} />
+            <Route path="dashboard" element={<DashboardPage />} />
             <Route
               path="settings"
               element={
                 <ProtectedRoute role="ADMIN">
-                  <PlaceholderPage title="設定" />
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="users"
+              element={
+                <ProtectedRoute role="ADMIN">
+                  <UsersPage />
                 </ProtectedRoute>
               }
             />
