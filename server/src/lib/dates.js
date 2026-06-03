@@ -30,15 +30,25 @@ export function toDateOnly(date) {
   return new Date(date).toISOString().slice(0, 10);
 }
 
-/** Today as a UTC-midnight date-only Date (server clock). */
-export function todayUTC() {
-  return parseDateOnly(new Date().toISOString().slice(0, 10));
+// "YYYY-MM-DD" from a Date's LOCAL calendar day. The server runs on the clinic
+// PC, so local time == clinic time; business-day boundaries must follow the
+// clinic's midnight, not UTC (otherwise buckets shift a day near UTC midnight).
+function localDateString(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-/** Collapse a DateTime (e.g. lineSentAt, calledAt) to its UTC date-only Date. */
+/** Today as a date-only Date anchored on the clinic-local calendar day. */
+export function localToday() {
+  return parseDateOnly(localDateString(new Date()));
+}
+
+/** Collapse a DateTime (lineSentAt, calledAt) to its clinic-local calendar day. */
 export function toDayStart(dateTime) {
   if (!dateTime) return null;
-  return parseDateOnly(new Date(dateTime).toISOString().slice(0, 10));
+  return parseDateOnly(localDateString(new Date(dateTime)));
 }
 
 /** A new Date `days` after `date` (UTC). */

@@ -3,7 +3,7 @@ import prisma from '../lib/prisma.js';
 import { asyncHandler } from '../lib/asyncHandler.js';
 import { getSettings } from '../lib/settings.js';
 import { groupTodayRecalls } from '../lib/recall.js';
-import { todayUTC } from '../lib/dates.js';
+import { localToday } from '../lib/dates.js';
 
 const router = Router();
 
@@ -20,7 +20,7 @@ router.get(
       }),
     ]);
 
-    res.json(groupTodayRecalls(cycles, settings, todayUTC()));
+    res.json(groupTodayRecalls(cycles, settings, localToday()));
   })
 );
 

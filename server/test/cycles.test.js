@@ -100,13 +100,30 @@ describe('POST /api/cycles/:id/calls', () => {
     expect(prismaMock.recallCycle.update.mock.calls.at(-1)[0].data.step).toBe('CALL_1');
   });
 
-  it('400 MAX_CALLS_REACHED after the limit', async () => {
+  it('400 INVALID_STEP when calling before LINE is sent', async () => {
     prismaMock.recallCycle.findUnique.mockResolvedValue({
       id: 1,
       patientId: 5,
       isActive: true,
-      step: 'CALL_3',
-      callLogs: [{ attemptNo: 1 }, { attemptNo: 2 }, { attemptNo: 3 }],
+      step: 'NOT_STARTED',
+      callLogs: [],
+    });
+    const agent = await authedAgent();
+    const res = await agent.post('/api/cycles/1/calls').send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_STEP');
+    expect(prismaMock.callLog.create).not.toHaveBeenCalled();
+  });
+
+  it('400 MAX_CALLS_REACHED at the configured limit', async () => {
+    // maxCalls = 2 via settings; cycle already made 2 calls.
+    prismaMock.setting.findMany.mockResolvedValue([{ key: 'maxCalls', value: '2' }]);
+    prismaMock.recallCycle.findUnique.mockResolvedValue({
+      id: 1,
+      patientId: 5,
+      isActive: true,
+      step: 'CALL_2',
+      callLogs: [{ attemptNo: 1 }, { attemptNo: 2 }],
     });
     const agent = await authedAgent();
     const res = await agent.post('/api/cycles/1/calls').send({});

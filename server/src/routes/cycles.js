@@ -59,6 +59,12 @@ router.post(
     if (error === 404) return res.status(404).json({ error: 'NOT_FOUND' });
     if (error === 400) return res.status(400).json({ error: 'CYCLE_CLOSED' });
 
+    // Enforce the LINE-before-calls ordering: only callable from LINE_SENT /
+    // CALL_1 / CALL_2. (Manual step overrides come in Phase 3 via PATCH /step.)
+    if (!['LINE_SENT', 'CALL_1', 'CALL_2'].includes(cycle.step)) {
+      return res.status(400).json({ error: 'INVALID_STEP' });
+    }
+
     const settings = await getSettings();
     const maxCalls = Math.min(settings.maxCalls, ENUM_CALL_CAP);
     const callsMade = cycle.callLogs.length;
