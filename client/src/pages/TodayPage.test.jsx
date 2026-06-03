@@ -47,7 +47,7 @@ describe('TodayPage', () => {
     sendLine.mockResolvedValue({});
 
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: '傳 LINE / 訊息' }));
+    await userEvent.click(await screen.findByRole('button', { name: '傳 LINE' }));
     await waitFor(() => expect(sendLine).toHaveBeenCalledWith(1));
     await waitFor(() => expect(today).toHaveBeenCalledTimes(2));
   });

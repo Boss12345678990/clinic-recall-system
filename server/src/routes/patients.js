@@ -243,6 +243,63 @@ router.patch(
   })
 );
 
+// POST /api/patients/:id/reschedule { visitDate, intervalMonths? } — the
+// "confirmed recall -> book next" flow (spec §7/§8): close the current round as
+// CONFIRMED_BOOKED, record the booked visit, update lastVisit/interval, and open
+// a fresh active cycle anchored on the new visit.
+router.post(
+  '/:id/reschedule',
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'INVALID_ID' });
+
+    let visitDate;
+    try {
+      visitDate = parseDateOnly(req.body?.visitDate);
+    } catch {
+      return res.status(400).json({ error: 'INVALID_VISIT_DATE' });
+    }
+    if (!visitDate) return res.status(400).json({ error: 'VISIT_DATE_REQUIRED' });
+
+    const patient = await prisma.patient.findUnique({
+      where: { id },
+      include: { recallCycles: { where: { isActive: true }, take: 1 } },
+    });
+    if (!patient) return res.status(404).json({ error: 'NOT_FOUND' });
+
+    // Rescheduling is the "confirmed -> book next" step: the active round must
+    // already be confirmed (spec §7's 待約下次 state), so an in-progress,
+    // unconfirmed round can't be silently skipped.
+    const active = patient.recallCycles[0];
+    if (!active) return res.status(400).json({ error: 'NO_ACTIVE_CYCLE' });
+    if (active.status !== 'CONFIRMED') return res.status(400).json({ error: 'NOT_CONFIRMED' });
+
+    const raw = req.body?.intervalMonths;
+    const interval = raw === undefined || raw === null || raw === '' ? patient.intervalMonths : Number(raw);
+    if (!Number.isInteger(interval) || interval <= 0) {
+      return res.status(400).json({ error: 'INVALID_INTERVAL' });
+    }
+    const recallDate = computeRecallDate(visitDate, interval);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.recallCycle.update({
+        where: { id: active.id },
+        data: { isActive: false, closedReason: 'CONFIRMED_BOOKED' },
+      });
+      await tx.patient.update({ where: { id }, data: { lastVisit: visitDate, intervalMonths: interval } });
+      await tx.visit.create({ data: { patientId: id, visitDate } });
+      await tx.recallCycle.create({ data: { patientId: id, recallDate } });
+
+      return tx.patient.findUnique({
+        where: { id },
+        include: { recallCycles: { where: { isActive: true }, take: 1 } },
+      });
+    });
+
+    res.status(201).json(serializePatient(updated));
+  })
+);
+
 // DELETE /api/patients/:id — hard delete (cascades to visits/cycles/callLogs).
 router.delete(
   '/:id',

@@ -15,6 +15,7 @@ const prismaMock = {
   },
   visit: { create: vi.fn() },
   recallCycle: { create: vi.fn(), update: vi.fn() },
+  callLog: { create: vi.fn() },
   $transaction: vi.fn(async (cb) => cb(prismaMock)),
 };
 vi.mock('../src/lib/prisma.js', () => ({ default: prismaMock }));
@@ -214,6 +215,71 @@ describe('GET /api/patients/:id', () => {
     prismaMock.patient.findUnique.mockResolvedValue(null);
     const agent = await authedAgent();
     const res = await agent.get('/api/patients/999');
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /api/patients/:id/reschedule', () => {
+  it('closes the active cycle and opens a new one anchored on the visit', async () => {
+    prismaMock.patient.findUnique
+      .mockResolvedValueOnce({
+        id: 3,
+        intervalMonths: 6,
+        recallCycles: [{ id: 50, isActive: true, status: 'CONFIRMED' }],
+      })
+      .mockResolvedValueOnce({
+        id: 3,
+        name: 'Booked',
+        intervalMonths: 6,
+        status: 'ACTIVE',
+        lastVisit: new Date('2026-06-20T00:00:00Z'),
+        recallCycles: [{ isActive: true, recallDate: new Date('2026-12-20T00:00:00Z') }],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    prismaMock.recallCycle.update.mockResolvedValue({});
+    prismaMock.patient.update.mockResolvedValue({});
+    prismaMock.visit.create.mockResolvedValue({});
+    prismaMock.recallCycle.create.mockResolvedValue({});
+
+    const agent = await authedAgent();
+    const res = await agent.post('/api/patients/3/reschedule').send({ visitDate: '2026-06-20' });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.recallCycle.update.mock.calls.at(-1)[0]).toMatchObject({
+      where: { id: 50 },
+      data: { isActive: false, closedReason: 'CONFIRMED_BOOKED' },
+    });
+    expect(prismaMock.visit.create).toHaveBeenCalledOnce();
+    expect(prismaMock.recallCycle.create.mock.calls.at(-1)[0].data.recallDate.toISOString()).toBe(
+      '2026-12-20T00:00:00.000Z'
+    );
+    expect(res.body.recallDate).toBe('2026-12-20');
+  });
+
+  it('400 when visitDate is missing', async () => {
+    const agent = await authedAgent();
+    const res = await agent.post('/api/patients/3/reschedule').send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('VISIT_DATE_REQUIRED');
+  });
+
+  it('400 NOT_CONFIRMED when the active cycle is unconfirmed', async () => {
+    prismaMock.patient.findUnique.mockResolvedValue({
+      id: 3,
+      intervalMonths: 6,
+      recallCycles: [{ id: 50, isActive: true, status: 'UNCONFIRMED' }],
+    });
+    const agent = await authedAgent();
+    const res = await agent.post('/api/patients/3/reschedule').send({ visitDate: '2026-06-20' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('NOT_CONFIRMED');
+  });
+
+  it('404 when the patient is missing', async () => {
+    prismaMock.patient.findUnique.mockResolvedValue(null);
+    const agent = await authedAgent();
+    const res = await agent.post('/api/patients/999/reschedule').send({ visitDate: '2026-06-20' });
     expect(res.status).toBe(404);
   });
 });

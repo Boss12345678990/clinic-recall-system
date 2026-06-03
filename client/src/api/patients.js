@@ -6,4 +6,5 @@ export const patientsApi = {
   create: (data) => api.post('/patients', data),
   update: (id, data) => api.patch(`/patients/${id}`, data),
   remove: (id) => api.del(`/patients/${id}`),
+  reschedule: (id, body) => api.post(`/patients/${id}/reschedule`, body),
 };

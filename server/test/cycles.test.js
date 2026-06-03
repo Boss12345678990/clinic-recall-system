@@ -6,7 +6,7 @@ const prismaMock = {
   user: { findUnique: vi.fn() },
   setting: { findMany: vi.fn() },
   recallCycle: { findUnique: vi.fn(), update: vi.fn() },
-  callLog: { create: vi.fn() },
+  callLog: { create: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
   $transaction: vi.fn(async (cb) => cb(prismaMock)),
 };
 vi.mock('../src/lib/prisma.js', () => ({ default: prismaMock }));
@@ -130,5 +130,108 @@ describe('POST /api/cycles/:id/calls', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('MAX_CALLS_REACHED');
     expect(prismaMock.callLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /api/cycles/:id/step', () => {
+  it('sets LINE_SENT with a backdated lineSentAt', async () => {
+    prismaMock.recallCycle.findUnique.mockResolvedValue({
+      id: 1,
+      patientId: 5,
+      isActive: true,
+      step: 'NOT_STARTED',
+      lineSentAt: null,
+      callLogs: [],
+    });
+    prismaMock.recallCycle.update.mockResolvedValue({ id: 1, step: 'LINE_SENT', recallDate: null });
+
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/cycles/1/step').send({ step: 'LINE_SENT', date: '2026-05-01' });
+    expect(res.status).toBe(200);
+    const data = prismaMock.recallCycle.update.mock.calls.at(-1)[0].data;
+    expect(data.step).toBe('LINE_SENT');
+    expect(data.lineSentAt.toISOString()).toBe('2026-05-01T00:00:00.000Z');
+  });
+
+  it('records a backdated CallLog when moving to a CALL step', async () => {
+    prismaMock.recallCycle.findUnique.mockResolvedValue({
+      id: 1,
+      patientId: 5,
+      isActive: true,
+      step: 'LINE_SENT',
+      lineSentAt: new Date(),
+      callLogs: [],
+    });
+    prismaMock.callLog.create.mockResolvedValue({});
+    prismaMock.recallCycle.update.mockResolvedValue({ id: 1, step: 'CALL_1', recallDate: null });
+
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/cycles/1/step').send({ step: 'CALL_1', date: '2026-05-04' });
+    expect(res.status).toBe(200);
+    expect(prismaMock.callLog.create.mock.calls.at(-1)[0].data).toMatchObject({ attemptNo: 1 });
+  });
+
+  it('drops later call attempts when rewinding the step', async () => {
+    prismaMock.recallCycle.findUnique.mockResolvedValue({
+      id: 1,
+      patientId: 5,
+      isActive: true,
+      step: 'CALL_2',
+      callLogs: [{ id: 11, attemptNo: 1 }, { id: 12, attemptNo: 2 }],
+    });
+    prismaMock.recallCycle.update.mockResolvedValue({ id: 1, step: 'CALL_1', recallDate: null });
+
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/cycles/1/step').send({ step: 'CALL_1' });
+    expect(res.status).toBe(200);
+    expect(prismaMock.callLog.deleteMany.mock.calls.at(-1)[0]).toMatchObject({
+      where: { cycleId: 1, attemptNo: { gt: 1 } },
+    });
+  });
+
+  it('400 on an invalid step', async () => {
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/cycles/1/step').send({ step: 'BOGUS' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_STEP');
+  });
+});
+
+describe('PATCH /api/cycles/:id/status', () => {
+  it('confirms a cycle', async () => {
+    prismaMock.recallCycle.findUnique.mockResolvedValue({ id: 1, isActive: true, callLogs: [] });
+    prismaMock.recallCycle.update.mockResolvedValue({ id: 1, status: 'CONFIRMED', recallDate: null });
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/cycles/1/status').send({ status: 'CONFIRMED' });
+    expect(res.status).toBe(200);
+    expect(prismaMock.recallCycle.update.mock.calls.at(-1)[0].data.status).toBe('CONFIRMED');
+  });
+
+  it('400 on an invalid status', async () => {
+    const agent = await authedAgent();
+    const res = await agent.patch('/api/cycles/1/status').send({ status: 'MAYBE' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_STATUS');
+  });
+});
+
+describe('POST /api/cycles/:id/close', () => {
+  it('closes a cycle as unreachable', async () => {
+    prismaMock.recallCycle.findUnique.mockResolvedValue({ id: 1, isActive: true, callLogs: [] });
+    prismaMock.recallCycle.update.mockResolvedValue({ id: 1, isActive: false, recallDate: null });
+    const agent = await authedAgent();
+    const res = await agent.post('/api/cycles/1/close').send({ reason: 'NO_RESPONSE' });
+    expect(res.status).toBe(200);
+    expect(prismaMock.recallCycle.update.mock.calls.at(-1)[0].data).toMatchObject({
+      isActive: false,
+      closedReason: 'NO_RESPONSE',
+    });
+  });
+
+  it('400 on an invalid reason', async () => {
+    const agent = await authedAgent();
+    const res = await agent.post('/api/cycles/1/close').send({ reason: 'BECAUSE' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('INVALID_REASON');
   });
 });
