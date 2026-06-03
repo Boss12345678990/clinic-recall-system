@@ -4,6 +4,9 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import AppLayout from './components/AppLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
+import PatientsPage from './pages/PatientsPage.jsx';
+import PatientFormPage from './pages/PatientFormPage.jsx';
+import PatientDetailPage from './pages/PatientDetailPage.jsx';
 
 export default function App() {
   return (
@@ -19,7 +22,10 @@ export default function App() {
             }
           >
             <Route index element={<PlaceholderPage title="今日待辦" />} />
-            <Route path="patients" element={<PlaceholderPage title="病患資料" />} />
+            <Route path="patients" element={<PatientsPage />} />
+            <Route path="patients/new" element={<PatientFormPage />} />
+            <Route path="patients/:id" element={<PatientDetailPage />} />
+            <Route path="patients/:id/edit" element={<PatientFormPage />} />
             <Route path="dashboard" element={<PlaceholderPage title="儀表板" />} />
             <Route
               path="settings"
